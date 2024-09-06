@@ -1,5 +1,6 @@
-🎉 Auction Bidding System
-Welcome to the Auction Bidding System! This MERN application is designed to manage auctions, bids, and users.
+# 🎉 Auction Flateform-
+
+Welcome to the Auction Flatform System! This MERN application is designed to manage auctions, bids, and users.
 
 It features:
 - Backend: Built with Node.js and Express.
@@ -10,6 +11,7 @@ It features:
 - Password Security: Handled with bcrypt for hashing passwords.
 
 # Backend (backend/)
+
 - config/: Contains configuration files such as db.js for setting up the database connection.
 - controllers/: Implements business logic for different aspects of the application:
 auctionController.js: Handles auction-related operations.
