@@ -456,4 +456,4 @@ The following environment variables are used:
 -   bcryptjs: Library for hashing passwords
 -   jsonwebtoken: JSON Web Token implementation
 -   dotenv: Loads environment variables from a .env file
--   cors: Middleware to enable CORS
+-   cors: Middleware to enable CORS...
