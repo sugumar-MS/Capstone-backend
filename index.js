@@ -11,12 +11,13 @@ const app = express();
 app.use(express.json());
 
 const allowedOrigins = [
-  'http://localhost:5173', 
-  'https://capstone-frontend-task.netlify.app'
+  'http://localhost:5174', // For local development
+  'https://capstone-frontend-task.netlify.app' // For production
 ];
 
 app.use(cors({
   origin: function (origin, callback) {
+    // Allow requests with no origin, like mobile apps or curl requests
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -24,7 +25,7 @@ app.use(cors({
     }
   },
   credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE"]
+  methods: ["GET", "POST", "PUT", "DELETE"],
 }));
 
 // Routes
@@ -34,3 +35,4 @@ app.use("/api/bids", require("./routes/bidRoutes"));
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+

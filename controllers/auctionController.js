@@ -130,44 +130,44 @@ const deleteAuctionItem = async (req, res) => {
 const getAuctionWinner = async (req, res) => {
 	const { id } = req.params;
 	try {
-		const auctionItem = await AuctionItem.findById(id);
-		if (!auctionItem) {
-			return res
-				.status(404)
-				.json({ winner: "", message: "Auction item not found" });
-		}
-
-		if (new Date(auctionItem.endDate) > new Date(Date.now())) {
-			return res
-				.status(400)
-				.json({ winner: "", message: "Auction has not ended yet" });
-		}
-
-		const bids = await Bid.find({ auctionItemId: id });
-		if (bids.length === 0) {
-			return res
-				.status(200)
-				.json({ winner: "", message: "No bids found" });
-		}
-
-		let highestBid = bids.reduce(
-			(max, bid) => (bid.bidAmount > max.bidAmount ? bid : max),
-			bids[0]
-		);
-
-		const winner = await User.findById(highestBid.userId);
-		if (!winner) {
-			return res
-				.status(404)
-				.json({ winner: "", message: "Winner not found" });
-		}
-
-		res.status(200).json({ winner });
+	  // Find the auction item by ID
+	  const auctionItem = await AuctionItem.findById(id);
+	  if (!auctionItem) {
+		return res.status(404).json({ winner: null, message: "Auction item not found" });
+	  }
+  
+	  // Check if the auction has ended
+	  const currentDate = new Date();
+	  const auctionEndDate = new Date(auctionItem.endDate);
+	  if (auctionEndDate > currentDate) {
+		return res.status(200).json({ winner: null, message: "Auction has not ended yet" });
+	  }
+  
+	  // Fetch all bids for the auction item
+	  const bids = await Bid.find({ auctionItemId: id });
+	  if (bids.length === 0) {
+		return res.status(200).json({ winner: null, message: "No bids found" });
+	  }
+  
+	  // Find the highest bid
+	  const highestBid = bids.reduce((max, bid) => {
+		return bid.bidAmount > max.bidAmount ? bid : max;
+	  }, bids[0]);
+  
+	  // Find the user who made the highest bid
+	  const winner = await User.findById(highestBid.userId);
+	  if (!winner) {
+		return res.status(404).json({ winner: null, message: "Winner not found" });
+	  }
+  
+	  // Return the winner information
+	  res.status(200).json({ winner, message: "Auction has ended. Winner found." });
 	} catch (error) {
-		console.error("Error fetching auction winner:", error);
-		res.status(500).json({ message: error.message });
+	  console.error("Error fetching auction winner:", error);
+	  res.status(500).json({ message: "Internal Server Error" });
 	}
-};
+  };
+  
 
 const getAuctionsWonByUser = async (req, res) => {
 	try {
