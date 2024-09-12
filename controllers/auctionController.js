@@ -4,12 +4,21 @@ const Bid = require("../models/Bid");
 const User = require("../models/User");
 const jwt = require("jsonwebtoken");
 
+// Helper function to extract and verify JWT token
+const getUserIdFromToken = (authorizationHeader) => {
+	if (!authorizationHeader) throw new Error("No token provided");
+
+	const token = authorizationHeader.split(" ")[1];
+	const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
+	return decodedToken.id;
+};
+
 const createAuctionItem = async (req, res) => {
 	const { title, description, startingBid, endDate } = req.body;
 	const userId = req.user.id;
 
 	try {
-		const newDate = new Date(new Date(endDate).getTime());
+		const newDate = new Date(endDate); // Ensures proper date conversion
 		const auctionItem = await AuctionItem.create({
 			title,
 			description,
@@ -48,19 +57,10 @@ const getAuctionItemById = async (req, res) => {
 
 const getAuctionItemsByUser = async (req, res) => {
 	try {
-		const token = req.headers.authorization.split(" ")[1];
-		const { id } = jwt.decode(token, process.env.JWT_SECRET, (err) => {
-			if (err) {
-				console.log(err);
-				return res.status(500).json({ message: err.message });
-			}
-		});
-		const auctionItems = await AuctionItem.find({ createdBy: id });
-		res.status(200).json({
-			auctionItems,
-		});
+		const userId = getUserIdFromToken(req.headers.authorization);
+		const auctionItems = await AuctionItem.find({ createdBy: userId });
+		res.status(200).json({ auctionItems });
 	} catch (error) {
-		console.log(error.message);
 		res.status(500).json({ message: error.message });
 	}
 };
@@ -81,15 +81,12 @@ const updateAuctionItem = async (req, res) => {
 			return res.status(403).json({ message: "Unauthorized action" });
 		}
 
-		// Update fields if they are provided in the request body
-		auctionItem.title = title || auctionItem.title;
-		auctionItem.description = description || auctionItem.description;
-		auctionItem.startingBid = startingBid || auctionItem.startingBid;
-		auctionItem.endDate = endDate
-			? new Date(endDate)  // Converts to Date object
-			: auctionItem.endDate;
+		if (title) auctionItem.title = title;
+		if (description) auctionItem.description = description;
+		if (startingBid) auctionItem.startingBid = startingBid;
+		if (endDate) auctionItem.endDate = new Date(endDate);
+		auctionItem.updatedAt = new Date();
 
-		auctionItem.updatedAt = new Date(); // Automatically update the update timestamp
 		await auctionItem.save();
 
 		res.json(auctionItem);
@@ -98,113 +95,91 @@ const updateAuctionItem = async (req, res) => {
 	}
 };
 
-
 const deleteAuctionItem = async (req, res) => {
-    const { id } = req.params;
-    const userId = req.user.id;
+	const { id } = req.params;
+	const userId = req.user.id;
 
-    try {
-        const auctionItem = await AuctionItem.findById(id);
+	try {
+		const auctionItem = await AuctionItem.findById(id);
 
-        if (!auctionItem) {
-            return res.status(404).json({ message: "Auction item not found" });
-        }
+		if (!auctionItem) {
+			return res.status(404).json({ message: "Auction item not found" });
+		}
 
-        if (auctionItem.createdBy.toString() !== userId) {
-            return res.status(403).json({ message: "Unauthorized action" });
-        }
+		if (auctionItem.createdBy.toString() !== userId) {
+			return res.status(403).json({ message: "Unauthorized action" });
+		}
 
-        // Remove all bids associated with this auction item
-        await Bid.deleteMany({ auctionItemId: id });
+		await Bid.deleteMany({ auctionItemId: id }); // Use deleteMany instead of remove
 
-        // Delete the auction item
-        await AuctionItem.deleteOne({ _id: id });
+		await auctionItem.deleteOne(); // Use deleteOne instead of remove
 
-        res.json({ message: "Auction item removed" });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
+		res.json({ message: "Auction item removed" });
+	} catch (error) {
+		res.status(500).json({ message: error.message });
+	}
 };
-
 
 const getAuctionWinner = async (req, res) => {
 	const { id } = req.params;
 	try {
-	  // Find the auction item by ID
-	  const auctionItem = await AuctionItem.findById(id);
-	  if (!auctionItem) {
-		return res.status(404).json({ winner: null, message: "Auction item not found" });
-	  }
-  
-	  // Check if the auction has ended
-	  const currentDate = new Date();
-	  const auctionEndDate = new Date(auctionItem.endDate);
-	  if (auctionEndDate > currentDate) {
-		return res.status(200).json({ winner: null, message: "Auction has not ended yet" });
-	  }
-  
-	  // Fetch all bids for the auction item
-	  const bids = await Bid.find({ auctionItemId: id });
-	  if (bids.length === 0) {
-		return res.status(200).json({ winner: null, message: "No bids found" });
-	  }
-  
-	  // Find the highest bid
-	  const highestBid = bids.reduce((max, bid) => {
-		return bid.bidAmount > max.bidAmount ? bid : max;
-	  }, bids[0]);
-  
-	  // Find the user who made the highest bid
-	  const winner = await User.findById(highestBid.userId);
-	  if (!winner) {
-		return res.status(404).json({ winner: null, message: "Winner not found" });
-	  }
-  
-	  // Return the winner information
-	  res.status(200).json({ winner, message: "Auction has ended. Winner found." });
+		const auctionItem = await AuctionItem.findById(id);
+		if (!auctionItem) {
+			return res.status(404).json({ winner: "", message: "Auction item not found" });
+		}
+
+		if (new Date(auctionItem.endDate) > new Date()) {
+			return res.status(400).json({ winner: "", message: "Auction has not ended yet" });
+		}
+
+		const bids = await Bid.find({ auctionItemId: id });
+		if (bids.length === 0) {
+			return res.status(200).json({ winner: "", message: "No bids found" });
+		}
+
+		const highestBid = bids.reduce((max, bid) => (bid.bidAmount > max.bidAmount ? bid : max), bids[0]);
+
+		const winner = await User.findById(highestBid.userId);
+		if (!winner) {
+			return res.status(404).json({ winner: "", message: "Winner not found" });
+		}
+
+		res.status(200).json({ winner });
 	} catch (error) {
-	  console.error("Error fetching auction winner:", error);
-	  res.status(500).json({ message: "Internal Server Error" });
+		console.error("Error fetching auction winner:", error);
+		res.status(500).json({ message: error.message });
 	}
-  };
-  
+};
 
 const getAuctionsWonByUser = async (req, res) => {
 	try {
-		const token = req.headers.authorization.split(" ")[1];
-		const decodedToken = jwt.verify(token, process.env.JWT_SECRET);
-		const { id } = decodedToken;
+		const userId = getUserIdFromToken(req.headers.authorization);
 
-		const bidsByUser = await Bid.find({ userId: id });
+		const bidsByUser = await Bid.find({ userId });
 		const auctionIds = bidsByUser.map((bid) => bid.auctionItemId);
 
 		const uniqueAuctionIds = [...new Set(auctionIds)];
 
-		let wonAuctions = [];
-
-		for (let i = 0; i < uniqueAuctionIds.length; i++) {
-			const auctionItemId = uniqueAuctionIds[i];
+		const wonAuctions = await Promise.all(uniqueAuctionIds.map(async (auctionItemId) => {
 			const bids = await Bid.find({ auctionItemId });
-			let winningBid = bids.reduce(
-				(max, bid) => (bid.bidAmount > max.bidAmount ? bid : max),
-				bids[0]
-			);
+			const winningBid = bids.reduce((max, bid) => (bid.bidAmount > max.bidAmount ? bid : max), bids[0]);
 
 			const auctionItem = await AuctionItem.findById(auctionItemId);
-			const isAuctionEnded =
-				new Date(auctionItem.endDate) <= new Date(Date.now());
+			const isAuctionEnded = new Date(auctionItem.endDate) <= new Date();
 
-			if (isAuctionEnded && winningBid.userId.toString() === id) {
-				wonAuctions.push({
+			if (isAuctionEnded && winningBid.userId.toString() === userId) {
+				return {
 					auctionId: auctionItemId,
 					title: auctionItem.title,
 					description: auctionItem.description,
 					winningBid: winningBid.bidAmount,
 					endDate: auctionItem.endDate,
-				});
+				};
 			}
-		}
-		res.status(200).json({ wonAuctions });
+			return null;
+		}));
+
+		res.status(200).json({ wonAuctions: wonAuctions.filter((auction) => auction !== null) });
 	} catch (error) {
 		console.log(error.message);
 		res.status(500).json({ message: error.message });
