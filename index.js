@@ -1,4 +1,3 @@
-//index.js
 const express = require("express");
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
@@ -17,28 +16,41 @@ const app = express();
 app.use(express.json());
 
 // CORS configuration
+const allowedOrigins = [
+  "https://capstone-frontend-auction.netlify.app",
+  "http://localhost:5173",
+];
+
 const corsOptions = {
-  origin: process.env.ORIGIN || "https://capstone-frontend-auction.netlify.app", // Allow requests from Netlify
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  credentials: true, // Allow cookies or auth tokens
+  origin: function (origin, callback) {
+    // Allow requests with no origin (e.g., for mobile apps or Postman)
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  methods: ["GET", "POST", "PUT", "DELETE"], // Allowed methods
+  credentials: true, // Allow credentials (cookies, auth tokens)
 };
 
+// Enable CORS with the specified options
 app.use(cors(corsOptions));
 
-// Allow preflight requests for all routes
-app.options('*', cors(corsOptions));
+// Allow preflight (OPTIONS) requests for all routes
+app.options("*", cors(corsOptions));
 
-// Define routes
+// Define API routes
 app.use("/api/users", require("./routes/userRoutes"));
 app.use("/api/auctions", require("./routes/auctionRoutes"));
 app.use("/api/bids", require("./routes/bidRoutes"));
 
 // Root route
-app.get('/', (req, res) => {
-  res.send('API is running');
+app.get("/", (req, res) => {
+  res.send("API is running");
 });
 
-// Handle 404 errors
+// Handle 404 errors (for undefined routes)
 app.use((req, res, next) => {
   res.status(404).json({ message: "Route not found" });
 });
