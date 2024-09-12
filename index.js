@@ -12,7 +12,7 @@ app.use(express.json());
 
 // CORS configuration
 const corsOptions = {
-	origin: process.env.ORIGIN || "http://localhost:5173", // Default to localhost if not set
+	origin: process.env.ORIGIN || "https://capstone-frontend-auction.netlify.app", // Default to localhost if not set
 	methods: ["GET", "PUT", "POST", "DELETE"],
 	credentials: true,
 };
